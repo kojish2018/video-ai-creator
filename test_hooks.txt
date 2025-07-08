@@ -1,18 +1,20 @@
 これはhooksの動作テスト用ファイルです。
-【テスト実行中 - 8回目 - README同時更新テスト】
+【テスト実行中 - 9回目 - upstream設定後のpushテスト】
 Editツールを使用した際にhooksが動作するかテストしています。
 
 テスト内容：
 - PostToolUse hookの動作確認
 - Editツールでのトリガーテスト
+- upstream設定後のgit push動作確認
 - 複数ファイル同時編集での動作確認
 - コマンド実行の確認
 - ファイル変更の追跡
 
-編集タイムスタンプ: 2025-07-08 17:55 実行 (README同時更新テスト)
+編集タイムスタンプ: 2025-07-08 18:02 実行 (upstream設定後テスト)
 前回との差分確認もテスト対象です。
 
 もしhooksが正常に動作している場合、このEdit操作後に
-「🔧 Hook triggered by Edit tool!」のメッセージが表示されるはずです。
+「🔧 Hook triggered by Edit tool!」のメッセージが表示され、
+自動的にgit pushまで実行されるはずです。
 
-README.mdも同時に更新して、hookの動作を確認中。
+README.mdとtodo.mdも同時に更新して、hookの完全動作を確認中。
