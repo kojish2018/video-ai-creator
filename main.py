@@ -22,6 +22,8 @@ from script_generator import ScriptGenerator
 from image_fetcher import ImageFetcher
 from voice_generator import VoiceGenerator
 from video_creator import VideoCreator
+from subtitle_generator import SubtitleGenerator
+from youtube_uploader import YouTubeUploader
 
 
 class VideoWorkflow:
@@ -39,6 +41,8 @@ class VideoWorkflow:
             self.image_fetcher = ImageFetcher(self.config)
             self.voice_generator = VoiceGenerator(self.config)
             self.video_creator = VideoCreator(self.config)
+            self.subtitle_generator = SubtitleGenerator(self.config)
+            self.youtube_uploader = YouTubeUploader(self.config)
             
         except Exception as e:
             raise RuntimeError(f"コンポーネントの初期化に失敗しました: {e}")
@@ -54,13 +58,15 @@ class VideoWorkflow:
         else:
             print(f"[{progress:3d}%] {step}: {message}")
     
-    def generate_video(self, theme: str, output_filename: str = None) -> Dict[str, Any]:
+    def generate_video(self, theme: str, output_filename: str = None, skip_cleanup: bool = False, custom_script: str = None) -> Dict[str, Any]:
         """
         テーマから動画を生成する全工程を実行
         
         Args:
             theme: 動画のテーマ
             output_filename: 出力ファイル名（オプション）
+            skip_cleanup: 一時ファイルのクリーンアップをスキップするかどうか
+            custom_script: カスタムスクリプト（オプション）
             
         Returns:
             生成結果の辞書
@@ -85,13 +91,28 @@ class VideoWorkflow:
             result['steps']['config_validation'] = {'success': True}
             
             # ステップ2: スクリプト生成
-            self._update_progress("スクリプト生成", 10, f"テーマ '{theme}' からスクリプトを生成中...")
-            script_data = self.script_generator.generate_script(theme)
-            result['steps']['script_generation'] = {
-                'success': True,
-                'data': script_data
-            }
-            self._update_progress("スクリプト生成", 25, f"スクリプト生成完了: {script_data['title']}")
+            if custom_script:
+                self._update_progress("スクリプト生成", 10, "カスタムスクリプトを使用中...")
+                script_data = {
+                    'title': theme,
+                    'script': custom_script,
+                    'keywords': [theme]  # テーマをキーワードとして使用
+                }
+                result['steps']['script_generation'] = {
+                    'success': True,
+                    'data': script_data,
+                    'custom': True
+                }
+                self._update_progress("スクリプト生成", 25, f"カスタムスクリプト使用: {script_data['title']}")
+            else:
+                self._update_progress("スクリプト生成", 10, f"テーマ '{theme}' からスクリプトを生成中...")
+                script_data = self.script_generator.generate_script(theme)
+                result['steps']['script_generation'] = {
+                    'success': True,
+                    'data': script_data,
+                    'custom': False
+                }
+                self._update_progress("スクリプト生成", 25, f"スクリプト生成完了: {script_data['title']}")
             
             # ステップ3: 画像取得
             self._update_progress("画像取得", 30, "関連画像を検索・ダウンロード中...")
@@ -104,7 +125,8 @@ class VideoWorkflow:
             
             # ステップ4: 音声生成
             self._update_progress("音声生成", 55, "スクリプトから音声を生成中...")
-            audio_path = self.voice_generator.generate_voice(script_data['script'])
+            is_custom = result['steps']['script_generation']['custom']
+            audio_path = self.voice_generator.generate_voice(script_data['script'], is_custom_script=is_custom)
             result['steps']['voice_generation'] = {
                 'success': True,
                 'audio_path': audio_path
@@ -119,7 +141,7 @@ class VideoWorkflow:
                 clean_theme = "".join(c for c in theme if c.isalnum() or c in "- _")[:20]
                 output_filename = f"{clean_theme}_{timestamp}.mp4"
             
-            video_path = self.video_creator.create_video(images, audio_path, output_filename)
+            video_path = self.video_creator.create_video(images, audio_path, output_filename, is_custom_script=is_custom)
             result['steps']['video_creation'] = {
                 'success': True,
                 'video_path': video_path
@@ -136,8 +158,9 @@ class VideoWorkflow:
             result['video_info'] = video_info
             result['duration'] = time.time() - start_time
             
-            # 一時ファイルの削除
-            self._cleanup_temp_files()
+            # 一時ファイルの削除（オプション）
+            if not skip_cleanup:
+                self._cleanup_temp_files()
             
             self._update_progress("完了", 100, f"動画生成完了: {os.path.basename(video_path)}")
             
@@ -153,12 +176,155 @@ class VideoWorkflow:
             
             raise RuntimeError(error_msg)
     
+    def generate_video_with_subtitles(self, theme: str, output_filename: str = None, 
+                                    upload_to_youtube: bool = False, 
+                                    youtube_privacy: str = 'private', 
+                                    custom_script: str = None) -> Dict[str, Any]:
+        """
+        字幕付き動画を生成し、オプションでYouTubeにアップロード
+        
+        Args:
+            theme: 動画のテーマ
+            output_filename: 出力ファイル名（オプション）
+            upload_to_youtube: YouTubeにアップロードするかどうか
+            youtube_privacy: YouTube動画のプライバシー設定
+            custom_script: カスタムスクリプト（オプション）
+            
+        Returns:
+            生成結果の辞書
+        """
+        if not theme or not theme.strip():
+            raise ValueError("テーマが指定されていません")
+        
+        start_time = time.time()
+        result = {
+            'theme': theme,
+            'success': False,
+            'output_path': None,
+            'subtitle_path': None,
+            'youtube_url': None,
+            'duration': 0,
+            'steps': {},
+            'errors': []
+        }
+        
+        try:
+            # ステップ1-5: 基本動画生成（既存のワークフロー、一時ファイルはクリーンアップしない）
+            basic_result = self.generate_video(theme, output_filename, skip_cleanup=True, custom_script=custom_script)
+            if not basic_result['success']:
+                result['errors'].extend(basic_result['errors'])
+                return result
+            
+            basic_video_path = basic_result['output_path']
+            script_data = basic_result['steps']['script_generation']['data']
+            
+            # ステップ6: 字幕生成
+            self._update_progress("字幕生成", 85, "字幕ファイルを生成中...")
+            subtitle_path = self.subtitle_generator.generate_subtitles(
+                script_data['script'], 
+                basic_result['steps']['voice_generation']['audio_path']
+            )
+            result['steps']['subtitle_generation'] = {
+                'success': True,
+                'subtitle_path': subtitle_path
+            }
+            
+            # ステップ7: 字幕付き動画作成
+            self._update_progress("字幕埋め込み", 90, "動画に字幕を埋め込み中...")
+            
+            # 字幕付き動画の出力パスを設定
+            if output_filename:
+                base_name = os.path.splitext(output_filename)[0]
+                subtitled_filename = f"{base_name}_with_subtitles.mp4"
+            else:
+                base_name = os.path.splitext(os.path.basename(basic_video_path))[0]
+                subtitled_filename = f"{base_name}_with_subtitles.mp4"
+            
+            subtitled_video_path = self.subtitle_generator.add_subtitles_to_video(
+                basic_video_path, 
+                subtitle_path, 
+                subtitled_filename
+            )
+            
+            result['steps']['subtitle_embedding'] = {
+                'success': True,
+                'video_path': subtitled_video_path
+            }
+            
+            # 基本動画と字幕付き動画の両方のパスを保存
+            result['output_path'] = subtitled_video_path
+            result['subtitle_path'] = subtitle_path
+            result['basic_video_path'] = basic_video_path
+            
+            self._update_progress("字幕埋め込み", 95, "字幕付き動画作成完了")
+            
+            # ステップ8: YouTube アップロード（オプション）
+            if upload_to_youtube:
+                self._update_progress("YouTube投稿", 96, "YouTube認証中...")
+                
+                # YouTube認証
+                if not self.youtube_uploader.authenticate():
+                    result['errors'].append("YouTube認証に失敗しました")
+                    result['youtube_url'] = None
+                else:
+                    self._update_progress("YouTube投稿", 97, "YouTubeに動画をアップロード中...")
+                    
+                    # プログレスコールバック
+                    def upload_progress(message):
+                        self._update_progress("YouTube投稿", 98, message)
+                    
+                    youtube_url = self.youtube_uploader.upload_video(
+                        subtitled_video_path,
+                        theme,
+                        script_data['script'],
+                        youtube_privacy,
+                        upload_progress
+                    )
+                    
+                    result['steps']['youtube_upload'] = {
+                        'success': youtube_url is not None,
+                        'url': youtube_url,
+                        'privacy': youtube_privacy
+                    }
+                    result['youtube_url'] = youtube_url
+                    
+                    if youtube_url:
+                        self._update_progress("YouTube投稿", 99, "YouTube投稿完了")
+                    else:
+                        result['errors'].append("YouTube投稿に失敗しました")
+            
+            # 結果の設定
+            result['success'] = True
+            result['duration'] = time.time() - start_time
+            
+            # 一時ファイルの削除
+            self._cleanup_temp_files()
+            
+            self._update_progress("完了", 100, "全ての処理が完了しました")
+            
+            return result
+            
+        except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
+            error_msg = f"字幕付き動画生成中にエラーが発生しました: {e}"
+            print(f"\n詳細なエラー情報:\n{error_traceback}")
+            result['errors'].append(error_msg)
+            result['duration'] = time.time() - start_time
+            
+            # エラー時も一時ファイルを削除
+            self._cleanup_temp_files()
+            
+            raise RuntimeError(error_msg)
+    
     def _cleanup_temp_files(self):
         """一時ファイルをクリーンアップ"""
         try:
             self.image_fetcher.cleanup_temp_images()
             self.voice_generator.cleanup_temp_audio()
             self.video_creator.cleanup_temp_files()
+            if hasattr(self, 'subtitle_generator'):
+                self.subtitle_generator.cleanup_temp_files()
         except Exception as e:
             print(f"警告: 一時ファイルの削除中にエラーが発生しました: {e}")
 
@@ -206,6 +372,8 @@ class CLIInterface:
   python main.py                           # 対話モード
   python main.py -t "人工知能の未来"       # テーマ指定モード
   python main.py --theme "宇宙探査" -o "space_video.mp4"  # 出力ファイル名指定
+  python main.py -t "AI技術" --with-subtitles  # 字幕付き動画生成
+  python main.py -t "科学技術" --upload-youtube --youtube-privacy public  # YouTube投稿
             """
         )
         
@@ -219,6 +387,26 @@ class CLIInterface:
             '-o', '--output',
             type=str,
             help='出力動画ファイル名'
+        )
+        
+        parser.add_argument(
+            '--with-subtitles',
+            action='store_true',
+            help='字幕付き動画を生成'
+        )
+        
+        parser.add_argument(
+            '--upload-youtube',
+            action='store_true',
+            help='YouTubeにアップロード'
+        )
+        
+        parser.add_argument(
+            '--youtube-privacy',
+            type=str,
+            choices=['private', 'public', 'unlisted'],
+            default='private',
+            help='YouTube動画のプライバシー設定（デフォルト: private）'
         )
         
         parser.add_argument(
@@ -247,9 +435,23 @@ class CLIInterface:
             print(f"テーマ: {args.theme}")
             if args.output:
                 print(f"出力ファイル名: {args.output}")
+            if args.with_subtitles:
+                print("字幕付き動画を生成します")
+            if args.upload_youtube:
+                print(f"YouTubeにアップロードします（プライバシー: {args.youtube_privacy}）")
             print()
             
-            result = self.workflow.generate_video(args.theme, args.output)
+            # 字幕付き動画またはYouTubeアップロードが指定された場合
+            if args.with_subtitles or args.upload_youtube:
+                result = self.workflow.generate_video_with_subtitles(
+                    args.theme, 
+                    args.output,
+                    args.upload_youtube,
+                    args.youtube_privacy
+                )
+            else:
+                result = self.workflow.generate_video(args.theme, args.output)
+            
             self._print_result(result)
             
         except Exception as e:
@@ -290,11 +492,53 @@ class CLIInterface:
                 if not output_file:
                     output_file = None
                 
+                # カスタムスクリプトオプションの確認
+                custom_script_choice = input("スクリプトを自分で作成しますか？ (Y/n): ").strip().lower()
+                custom_script = None
+                if custom_script_choice not in ['n', 'no']:
+                    print("スクリプトを入力してください（改行は改行、終了は空行を2回入力）:")
+                    custom_script_lines = []
+                    empty_line_count = 0
+                    while True:
+                        line = input()
+                        if line == "":
+                            empty_line_count += 1
+                            if empty_line_count >= 2:
+                                break
+                            custom_script_lines.append(line)
+                        else:
+                            empty_line_count = 0
+                            custom_script_lines.append(line)
+                    custom_script = '\n'.join(custom_script_lines).strip()
+                    if not custom_script:
+                        print("スクリプトが入力されていません。AI生成スクリプトを使用します。")
+                        custom_script = None
+                
+                # 字幕オプションの確認
+                subtitle_choice = input("字幕付き動画を生成しますか？ (Y/n): ").strip().lower()
+                with_subtitles = subtitle_choice not in ['n', 'no']
+                
+                # YouTubeアップロードオプションの確認
+                youtube_choice = input("YouTubeにアップロードしますか？ (Y/n): ").strip().lower()
+                upload_youtube = youtube_choice not in ['n', 'no']
+                
+                youtube_privacy = 'private'
+                if upload_youtube:
+                    privacy_choice = input("プライバシー設定 (private/public/unlisted) [private]: ").strip().lower()
+                    if privacy_choice in ['public', 'unlisted']:
+                        youtube_privacy = privacy_choice
+                
                 print()
                 
                 try:
                     # 動画生成実行
-                    result = self.workflow.generate_video(theme, output_file)
+                    if with_subtitles or upload_youtube:
+                        result = self.workflow.generate_video_with_subtitles(
+                            theme, output_file, upload_youtube, youtube_privacy, custom_script
+                        )
+                    else:
+                        result = self.workflow.generate_video(theme, output_file, custom_script=custom_script)
+                    
                     self._print_result(result)
                     
                     # 継続確認
@@ -358,6 +602,21 @@ class CLIInterface:
         if result['success']:
             print("🎉 動画生成完了！")
             print(f"📁 出力ファイル: {result['output_path']}")
+            
+            # 字幕ファイルの情報
+            if 'subtitle_path' in result and result['subtitle_path']:
+                print(f"📝 字幕ファイル: {result['subtitle_path']}")
+            
+            # 基本動画パス（字幕なし）の情報
+            if 'basic_video_path' in result and result['basic_video_path']:
+                print(f"📁 基本動画ファイル: {result['basic_video_path']}")
+            
+            # YouTube URL
+            if 'youtube_url' in result and result['youtube_url']:
+                print(f"🎬 YouTube URL: {result['youtube_url']}")
+                if 'steps' in result and 'youtube_upload' in result['steps']:
+                    privacy = result['steps']['youtube_upload'].get('privacy', 'private')
+                    print(f"🔒 プライバシー設定: {privacy}")
             
             if 'video_info' in result and result['video_info']:
                 info = result['video_info']

@@ -58,13 +58,17 @@ class ImageFetcher:
         except Exception as e:
             self._handle_fetch_error(e)
     
-    def _process_keywords(self, keywords: str) -> List[str]:
+    def _process_keywords(self, keywords) -> List[str]:
         """Process and clean keywords for search"""
         if not keywords:
             return ["nature", "landscape"]
         
-        # Split by comma and clean
-        terms = [term.strip() for term in keywords.split(',')]
+        # Handle both string and list inputs
+        if isinstance(keywords, list):
+            terms = [str(term).strip() for term in keywords]
+        else:
+            # Split by comma and clean
+            terms = [term.strip() for term in str(keywords).split(',')]
         # Remove empty terms and duplicates
         terms = list(set([term for term in terms if term]))
         

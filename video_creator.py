@@ -16,14 +16,15 @@ class VideoCreator:
         self.video_size = (config.video_width, config.video_height)
         self.fps = config.video_fps
     
-    def create_video(self, images: List[Dict[str, str]], audio_path: str, output_filename: str = None) -> str:
+    def create_video(self, images: List[Dict[str, str]], audio_path: str, output_filename: str = None, is_custom_script: bool = False) -> str:
         """
-        Create a 30-second video with image slideshow and audio
+        Create a video with image slideshow and audio
         
         Args:
             images: List of image info dictionaries with 'local_path' key
             audio_path: Path to audio file
             output_filename: Output video filename (optional)
+            is_custom_script: Whether this is a custom script (bypasses 30-second rule)
             
         Returns:
             Path to created video file
@@ -37,7 +38,8 @@ class VideoCreator:
         try:
             # Load audio to get actual duration
             audio_clip = AudioFileClip(audio_path)
-            actual_duration = min(audio_clip.duration, self.target_duration)
+            # For custom scripts, use full audio duration; for regular scripts, limit to target duration
+            actual_duration = audio_clip.duration if is_custom_script else min(audio_clip.duration, self.target_duration)
             
             # Create image slideshow
             video_clip = self._create_image_slideshow(images, actual_duration)
