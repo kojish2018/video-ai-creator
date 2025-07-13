@@ -179,7 +179,8 @@ class VideoWorkflow:
     def generate_video_with_subtitles(self, theme: str, output_filename: str = None, 
                                     upload_to_youtube: bool = False, 
                                     youtube_privacy: str = 'private', 
-                                    custom_script: str = None) -> Dict[str, Any]:
+                                    custom_script: str = None, 
+                                    youtube_title: str = None) -> Dict[str, Any]:
         """
         字幕付き動画を生成し、オプションでYouTubeにアップロード
         
@@ -189,6 +190,7 @@ class VideoWorkflow:
             upload_to_youtube: YouTubeにアップロードするかどうか
             youtube_privacy: YouTube動画のプライバシー設定
             custom_script: カスタムスクリプト（オプション）
+            youtube_title: YouTube動画のカスタムタイトル（オプション）
             
         Returns:
             生成結果の辞書
@@ -278,7 +280,8 @@ class VideoWorkflow:
                         theme,
                         script_data['script'],
                         youtube_privacy,
-                        upload_progress
+                        upload_progress,
+                        youtube_title
                     )
                     
                     result['steps']['youtube_upload'] = {
@@ -523,10 +526,19 @@ class CLIInterface:
                 upload_youtube = youtube_choice not in ['n', 'no']
                 
                 youtube_privacy = 'private'
+                youtube_title = None
                 if upload_youtube:
                     privacy_choice = input("プライバシー設定 (private/public/unlisted) [private]: ").strip().lower()
                     if privacy_choice in ['public', 'unlisted']:
                         youtube_privacy = privacy_choice
+                    
+                    # カスタムタイトル入力
+                    title_choice = input("YouTubeのタイトルを自分で設定しますか？ (Y/n): ").strip().lower()
+                    if title_choice not in ['n', 'no']:
+                        youtube_title = input("YouTubeのタイトルを入力してください: ").strip()
+                        if not youtube_title:
+                            print("タイトルが入力されていません。自動生成タイトルを使用します。")
+                            youtube_title = None
                 
                 print()
                 
@@ -534,7 +546,7 @@ class CLIInterface:
                     # 動画生成実行
                     if with_subtitles or upload_youtube:
                         result = self.workflow.generate_video_with_subtitles(
-                            theme, output_file, upload_youtube, youtube_privacy, custom_script
+                            theme, output_file, upload_youtube, youtube_privacy, custom_script, youtube_title
                         )
                     else:
                         result = self.workflow.generate_video(theme, output_file, custom_script=custom_script)

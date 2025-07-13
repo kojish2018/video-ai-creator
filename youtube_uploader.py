@@ -76,16 +76,19 @@ class YouTubeUploader:
             print(f"Error during YouTube authentication: {e}")
             return False
     
-    def generate_video_metadata(self, theme: str, script: str) -> Dict[str, Any]:
+    def generate_video_metadata(self, theme: str, script: str, custom_title: str = None) -> Dict[str, Any]:
         """Generate video title and description based on theme and script"""
         # Extract key points from script for description
         script_lines = script.split('\n')
         first_sentence = script_lines[0] if script_lines else theme
         
         # Generate title (max 100 characters for YouTube)
-        title = f"{theme}について - 30秒で学ぶ"
-        if len(title) > 100:
-            title = f"{theme[:80]}... - 30秒で学ぶ"
+        if custom_title:
+            title = custom_title[:100]  # YouTubeの100文字制限を適用
+        else:
+            title = f"{theme}について - 30秒で学ぶ"
+            if len(title) > 100:
+                title = f"{theme[:80]}... - 30秒で学ぶ"
         
         # Generate description
         description = f"""
