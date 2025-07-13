@@ -119,7 +119,8 @@ class YouTubeUploader:
         script: str, 
         privacy_status: str = 'private',
         callback=None,
-        custom_title: str = None
+        custom_title: str = None,
+        thumbnail_path: str = None
     ) -> Optional[str]:
         """
         Upload video to YouTube
@@ -131,6 +132,7 @@ class YouTubeUploader:
             privacy_status: Video privacy ('private', 'public', 'unlisted')
             callback: Progress callback function
             custom_title: Custom title for the video (optional)
+            thumbnail_path: Path to custom thumbnail image (optional)
             
         Returns:
             Video URL if successful, None otherwise
@@ -217,6 +219,17 @@ class YouTubeUploader:
                 print(f"Video ID: {video_id}")
                 print(f"Video URL: {video_url}")
                 
+                # サムネイルをアップロード（オプション）
+                if thumbnail_path and os.path.exists(thumbnail_path):
+                    if callback:
+                        callback("Uploading custom thumbnail...")
+                    
+                    thumbnail_success = self.upload_thumbnail(video_id, thumbnail_path)
+                    if thumbnail_success:
+                        print("Custom thumbnail uploaded successfully!")
+                    else:
+                        print("Warning: Custom thumbnail upload failed")
+                
                 if callback:
                     callback("Upload completed successfully!")
                 
@@ -301,6 +314,89 @@ class YouTubeUploader:
             
         except Exception as e:
             print(f"Error revoking credentials: {e}")
+            return False
+    
+    def upload_thumbnail(self, video_id: str, thumbnail_path: str) -> bool:
+        """
+        指定された動画にカスタムサムネイルをアップロード
+        
+        Args:
+            video_id: YouTube動画ID
+            thumbnail_path: サムネイル画像のパス
+            
+        Returns:
+            アップロード成功の場合True、失敗の場合False
+        """
+        if not self.service:
+            print("Error: YouTube API not authenticated. Call authenticate() first.")
+            return False
+        
+        if not os.path.exists(thumbnail_path):
+            print(f"Error: Thumbnail file not found: {thumbnail_path}")
+            return False
+        
+        try:
+            # サムネイルファイルを検証
+            if not self._validate_thumbnail_file(thumbnail_path):
+                return False
+            
+            # サムネイルアップロード
+            media = MediaFileUpload(
+                thumbnail_path,
+                mimetype='image/jpeg',
+                resumable=True
+            )
+            
+            request = self.service.thumbnails().set(
+                videoId=video_id,
+                media_body=media
+            )
+            
+            response = request.execute()
+            
+            if response:
+                print(f"Thumbnail upload successful for video ID: {video_id}")
+                return True
+            else:
+                print("Thumbnail upload failed: No response received")
+                return False
+                
+        except HttpError as e:
+            print(f"HTTP error during thumbnail upload: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error during thumbnail upload: {e}")
+            return False
+    
+    def _validate_thumbnail_file(self, thumbnail_path: str) -> bool:
+        """サムネイルファイルを検証"""
+        try:
+            # ファイルサイズチェック（YouTubeの制限: 2MB）
+            file_size = os.path.getsize(thumbnail_path)
+            max_size = 2 * 1024 * 1024  # 2MB
+            
+            if file_size > max_size:
+                print(f"Error: Thumbnail file too large: {file_size / (1024*1024):.1f}MB (max: 2MB)")
+                return False
+            
+            if file_size == 0:
+                print("Error: Thumbnail file is empty")
+                return False
+            
+            # ファイル拡張子チェック
+            valid_extensions = ['.jpg', '.jpeg', '.png']
+            file_ext = os.path.splitext(thumbnail_path)[1].lower()
+            
+            if file_ext not in valid_extensions:
+                print(f"Error: Unsupported thumbnail format: {file_ext}")
+                print(f"Supported formats: {', '.join(valid_extensions)}")
+                return False
+            
+            print(f"Thumbnail file validation passed: {os.path.basename(thumbnail_path)} ({file_size / 1024:.1f}KB)")
+            return True
+            
+        except Exception as e:
+            print(f"Error validating thumbnail file: {e}")
             return False
 
 

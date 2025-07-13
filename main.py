@@ -24,6 +24,7 @@ from voice_generator import VoiceGenerator
 from video_creator import VideoCreator
 from subtitle_generator import SubtitleGenerator
 from youtube_uploader import YouTubeUploader
+from thumbnail_generator import ThumbnailGenerator
 
 
 class VideoWorkflow:
