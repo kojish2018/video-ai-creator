@@ -539,6 +539,21 @@ class CLIInterface:
                         if not youtube_title:
                             print("タイトルが入力されていません。自動生成タイトルを使用します。")
                             youtube_title = None
+                    
+                    # サムネイル文字入力
+                    thumbnail_text = None
+                    thumbnail_choice = input("サムネイルに文字を入れますか？ (Y/n): ").strip().lower()
+                    if thumbnail_choice not in ['n', 'no']:
+                        while True:
+                            thumbnail_text = input("サムネイルに入れる文字を入力してください（14文字以内）: ").strip()
+                            if not thumbnail_text:
+                                print("文字が入力されていません。サムネイル文字なしで生成します。")
+                                thumbnail_text = None
+                                break
+                            elif len(thumbnail_text) > 14:
+                                print(f"文字数が制限を超えています（{len(thumbnail_text)}文字）。14文字以内で入力してください。")
+                            else:
+                                break
                 
                 print()
                 

@@ -118,7 +118,8 @@ class YouTubeUploader:
         theme: str, 
         script: str, 
         privacy_status: str = 'private',
-        callback=None
+        callback=None,
+        custom_title: str = None
     ) -> Optional[str]:
         """
         Upload video to YouTube
@@ -129,6 +130,7 @@ class YouTubeUploader:
             script: Video script for description generation
             privacy_status: Video privacy ('private', 'public', 'unlisted')
             callback: Progress callback function
+            custom_title: Custom title for the video (optional)
             
         Returns:
             Video URL if successful, None otherwise
@@ -143,7 +145,7 @@ class YouTubeUploader:
         
         try:
             # Generate video metadata
-            metadata = self.generate_video_metadata(theme, script)
+            metadata = self.generate_video_metadata(theme, script, custom_title)
             
             # Prepare video metadata for upload
             body = {
