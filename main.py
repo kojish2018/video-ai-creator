@@ -180,7 +180,8 @@ class VideoWorkflow:
                                     upload_to_youtube: bool = False, 
                                     youtube_privacy: str = 'private', 
                                     custom_script: str = None, 
-                                    youtube_title: str = None) -> Dict[str, Any]:
+                                    youtube_title: str = None, 
+                                    thumbnail_text: str = None) -> Dict[str, Any]:
         """
         字幕付き動画を生成し、オプションでYouTubeにアップロード
         
@@ -191,6 +192,7 @@ class VideoWorkflow:
             youtube_privacy: YouTube動画のプライバシー設定
             custom_script: カスタムスクリプト（オプション）
             youtube_title: YouTube動画のカスタムタイトル（オプション）
+            thumbnail_text: サムネイルに入れる文字（オプション）
             
         Returns:
             生成結果の辞書
@@ -561,7 +563,7 @@ class CLIInterface:
                     # 動画生成実行
                     if with_subtitles or upload_youtube:
                         result = self.workflow.generate_video_with_subtitles(
-                            theme, output_file, upload_youtube, youtube_privacy, custom_script, youtube_title
+                            theme, output_file, upload_youtube, youtube_privacy, custom_script, youtube_title, thumbnail_text
                         )
                     else:
                         result = self.workflow.generate_video(theme, output_file, custom_script=custom_script)
