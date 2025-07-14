@@ -75,6 +75,8 @@ class VideoCreator:
     def _create_video_background(self, videos: List[Dict[str, str]], duration: float) -> VideoFileClip:
         """Create video background with looping/cutting to match audio duration"""
         try:
+            print(f"🔍 DEBUG: _create_video_background called with {len(videos)} videos, duration={duration}")
+            
             # Validate inputs
             if not videos:
                 raise ValueError("No videos provided")
@@ -84,16 +86,20 @@ class VideoCreator:
             
             # Select the first valid video
             video_path = None
-            for video_info in videos:
+            for i, video_info in enumerate(videos):
+                print(f"🔍 DEBUG: Checking video {i}: {video_info}")
                 if 'local_path' in video_info and os.path.exists(video_info['local_path']):
                     video_path = video_info['local_path']
+                    print(f"🔍 DEBUG: Selected video path: {video_path}")
                     break
             
             if not video_path:
                 raise RuntimeError("No valid video files found")
             
             # Load video clip
+            print(f"🔍 DEBUG: Loading video clip from: {video_path}")
             video_clip = VideoFileClip(video_path)
+            print(f"🔍 DEBUG: Loaded video clip: duration={video_clip.duration}, size={video_clip.size}")
             
             # Validate loaded video clip
             if not video_clip or video_clip.duration <= 0:
@@ -101,7 +107,10 @@ class VideoCreator:
                 raise RuntimeError(f"Invalid video file: {video_path}")
             
             # Resize video to match target dimensions
+            print(f"🔍 DEBUG: Resizing video clip...")
             resized_clip = self._resize_and_fit_video(video_clip)
+            print(f"🔍 DEBUG: Resized clip: duration={resized_clip.duration}, size={resized_clip.size}")
+            print(f"🔍 DEBUG: Resized clip type: {type(resized_clip)}")
             
             # Validate resized clip
             if not resized_clip or resized_clip.duration <= 0:
@@ -113,13 +122,18 @@ class VideoCreator:
             # Adjust video duration to match audio
             if resized_clip.duration >= duration:
                 # Video is longer than needed, cut it
+                print(f"🔍 DEBUG: Cutting video from {resized_clip.duration}s to {duration}s")
                 final_video = resized_clip.subclip(0, duration)
             else:
                 # Video is shorter than needed, loop it
+                print(f"🔍 DEBUG: Looping video from {resized_clip.duration}s to {duration}s")
                 final_video = self._loop_video(resized_clip, duration)
+            
+            print(f"🔍 DEBUG: Final video: duration={final_video.duration}, type={type(final_video)}")
             
             # Remove original audio from video (we'll use the generated audio)
             final_video = final_video.without_audio()
+            print(f"🔍 DEBUG: Audio removed, final video ready")
             
             # Cleanup
             video_clip.close()
@@ -129,6 +143,7 @@ class VideoCreator:
             return final_video
             
         except Exception as e:
+            print(f"🔍 DEBUG: Exception in _create_video_background: {e}")
             raise RuntimeError(f"Failed to create video background: {e}")
     
     def _resize_and_fit_video(self, video_clip: VideoFileClip) -> VideoFileClip:
