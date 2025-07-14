@@ -6,9 +6,15 @@
 """
 
 import re
-import jieba
 from typing import List, Set
 from collections import Counter
+
+# jiebaが利用可能かチェック
+try:
+    import jieba
+    JIEBA_AVAILABLE = True
+except ImportError:
+    JIEBA_AVAILABLE = False
 
 class KeywordExtractor:
     """日本語スクリプトからキーワードを抽出するクラス"""
