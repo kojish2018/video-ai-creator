@@ -62,10 +62,14 @@ class VideoCreator:
             # Render video
             self._render_video(final_clip, output_path)
             
-            # Cleanup
+            # Cleanup after successful render
             audio_clip.close()
-            video_clip.close()
-            final_clip.close()
+            if hasattr(video_clip, 'close'):
+                video_clip.close()
+            if hasattr(final_clip, 'close'):
+                final_clip.close()
+            
+            print(f"🔍 DEBUG: Cleanup completed after successful render")
             
             return output_path
             
