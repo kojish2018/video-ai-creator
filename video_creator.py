@@ -245,6 +245,8 @@ class VideoCreator:
     def _loop_video(self, video_clip: VideoFileClip, target_duration: float) -> VideoFileClip:
         """Loop video to match target duration"""
         try:
+            print(f"🔍 DEBUG: _loop_video called with duration={video_clip.duration}, target={target_duration}")
+            
             # Validate input
             if not video_clip or video_clip.duration <= 0:
                 raise ValueError("Invalid video clip provided")
@@ -254,6 +256,7 @@ class VideoCreator:
             
             # If video is already longer than target, just cut it
             if video_clip.duration >= target_duration:
+                print(f"🔍 DEBUG: Video is longer than target, cutting to {target_duration}s")
                 return video_clip.subclip(0, target_duration)
             
             clips = []
@@ -264,29 +267,49 @@ class VideoCreator:
                 
                 if remaining_duration >= video_clip.duration:
                     # Add full video clip (create a copy to avoid reference issues)
-                    clips.append(video_clip.copy())
+                    clip_copy = video_clip.copy()
+                    clips.append(clip_copy)
                     current_duration += video_clip.duration
+                    print(f"🔍 DEBUG: Added full clip copy {len(clips)}, duration={clip_copy.duration}")
                 else:
                     # Add partial clip to reach exact duration
                     partial_clip = video_clip.subclip(0, remaining_duration)
                     clips.append(partial_clip)
                     current_duration += remaining_duration
+                    print(f"🔍 DEBUG: Added partial clip {len(clips)}, duration={partial_clip.duration}")
             
             # Ensure we have clips to concatenate
             if not clips:
                 raise RuntimeError("No clips generated for looping")
             
+            print(f"🔍 DEBUG: About to concatenate {len(clips)} clips")
+            
             # Validate all clips before concatenation
             for i, clip in enumerate(clips):
                 if not clip or not hasattr(clip, 'duration') or clip.duration <= 0:
                     raise RuntimeError(f"Invalid clip at index {i}")
+                
+                print(f"🔍 DEBUG: Clip {i}: type={type(clip)}, duration={clip.duration}")
+                
+                # Check if this is a CompositeVideoClip and examine its bg
+                if hasattr(clip, 'bg'):
+                    print(f"🔍 DEBUG: Clip {i} has bg attribute: {clip.bg}")
+                    if clip.bg is None:
+                        print(f"🔍 DEBUG: ⚠️ WARNING: Clip {i} has None bg!")
             
-            # Concatenate all clips
+            # Concatenate all clips with method='compose'
+            print(f"🔍 DEBUG: Concatenating clips with method='compose'")
             looped_video = concatenate_videoclips(clips, method='compose')
+            print(f"🔍 DEBUG: Concatenated video: type={type(looped_video)}, duration={looped_video.duration}")
+            
+            # Check the final concatenated video for bg issues
+            if hasattr(looped_video, 'bg'):
+                print(f"🔍 DEBUG: Final looped video bg: {looped_video.bg}")
             
             return looped_video
             
         except Exception as e:
+            print(f"🔍 DEBUG: Exception in _loop_video: {e}")
             raise RuntimeError(f"Failed to loop video: {e}")
     
     def _create_image_slideshow(self, images: List[Dict[str, str]], duration: float) -> VideoFileClip:
