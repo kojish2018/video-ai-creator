@@ -149,6 +149,8 @@ class VideoCreator:
     def _resize_and_fit_video(self, video_clip: VideoFileClip) -> VideoFileClip:
         """Resize and fit video to target dimensions while maintaining aspect ratio"""
         try:
+            print(f"🔍 DEBUG: _resize_and_fit_video called with clip: {type(video_clip)}")
+            
             # Validate input
             if not video_clip:
                 raise ValueError("Invalid video clip provided")
@@ -159,6 +161,7 @@ class VideoCreator:
             # Get original dimensions
             orig_w, orig_h = video_clip.size
             target_w, target_h = self.video_size
+            print(f"🔍 DEBUG: Original size: {orig_w}x{orig_h}, Target size: {target_w}x{target_h}")
             
             if orig_w <= 0 or orig_h <= 0:
                 raise ValueError(f"Invalid video dimensions: {orig_w}x{orig_h}")
@@ -171,12 +174,14 @@ class VideoCreator:
             # Resize video
             new_w = int(orig_w * scale)
             new_h = int(orig_h * scale)
+            print(f"🔍 DEBUG: Calculated new size: {new_w}x{new_h}, scale: {scale}")
             
             # Ensure minimum dimensions
             if new_w <= 0 or new_h <= 0:
                 raise ValueError(f"Calculated dimensions too small: {new_w}x{new_h}")
             
             resized_clip = video_clip.resize((new_w, new_h))
+            print(f"🔍 DEBUG: Resized clip created: {type(resized_clip)}")
             
             # Validate resized clip
             if not resized_clip:
@@ -184,9 +189,12 @@ class VideoCreator:
             
             # If video doesn't fill the entire frame, add black background
             if new_w < target_w or new_h < target_h:
+                print(f"🔍 DEBUG: Video needs background - creating composite")
+                
                 # Create black background
                 background = ColorClip(size=self.video_size, color=(0, 0, 0))
                 background = background.set_duration(video_clip.duration)
+                print(f"🔍 DEBUG: Background created: {type(background)}, duration: {background.duration}")
                 
                 # Validate background
                 if not background:
@@ -195,12 +203,22 @@ class VideoCreator:
                 # Center the video on the background
                 x_offset = (target_w - new_w) // 2
                 y_offset = (target_h - new_h) // 2
+                print(f"🔍 DEBUG: Positioning video at offset: ({x_offset}, {y_offset})")
                 
                 resized_clip = resized_clip.set_position((x_offset, y_offset))
+                print(f"🔍 DEBUG: Positioned clip: {type(resized_clip)}")
                 
                 # Create composite clip with validation
                 try:
+                    print(f"🔍 DEBUG: Creating CompositeVideoClip with background and resized clip")
                     final_clip = CompositeVideoClip([background, resized_clip])
+                    print(f"🔍 DEBUG: CompositeVideoClip created: {type(final_clip)}")
+                    
+                    # Check if the composite clip has the bg attribute
+                    if hasattr(final_clip, 'bg'):
+                        print(f"🔍 DEBUG: CompositeVideoClip.bg: {final_clip.bg}")
+                    else:
+                        print(f"🔍 DEBUG: CompositeVideoClip has no bg attribute!")
                     
                     # Validate final clip
                     if not final_clip:
@@ -208,16 +226,20 @@ class VideoCreator:
                     
                     return final_clip
                 except Exception as e:
+                    print(f"🔍 DEBUG: Exception creating composite clip: {e}")
                     # Clean up on error
                     if background:
                         background.close()
                     if resized_clip:
                         resized_clip.close()
                     raise RuntimeError(f"Failed to create composite clip: {e}")
+            else:
+                print(f"🔍 DEBUG: Video fits perfectly, no background needed")
             
             return resized_clip
             
         except Exception as e:
+            print(f"🔍 DEBUG: Exception in _resize_and_fit_video: {e}")
             raise RuntimeError(f"Failed to resize video: {e}")
     
     def _loop_video(self, video_clip: VideoFileClip, target_duration: float) -> VideoFileClip:
