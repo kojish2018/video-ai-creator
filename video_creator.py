@@ -1,9 +1,9 @@
 import os
 import time
-from typing import List, Dict
+from typing import List, Dict, Optional
 from moviepy.editor import (
     VideoFileClip, ImageClip, AudioFileClip, CompositeVideoClip,
-    concatenate_videoclips, ColorClip
+    concatenate_videoclips, ColorClip, TextClip
 )
 from config import Config
 

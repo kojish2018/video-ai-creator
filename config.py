@@ -12,6 +12,7 @@ class Config:
         # API Configuration
         self.gemini_api_key = os.getenv('GEMINI_API_KEY')
         self.unsplash_access_key = os.getenv('UNSPLASH_ACCESS_KEY')
+        self.pexels_api_key = os.getenv('PEXELS_API_KEY')
         
         # YouTube API Configuration
         self.youtube_client_id = os.getenv('YOUTUBE_CLIENT_ID')
@@ -35,6 +36,10 @@ class Config:
         # Image Configuration
         self.max_images = 5
         self.min_images = 3
+        
+        # Video Configuration (for Pexels API)
+        self.max_videos = 3
+        self.min_videos = 1
         
         # Audio Configuration
         self.audio_format = 'wav'
@@ -65,6 +70,9 @@ class Config:
             
         if not self.unsplash_access_key:
             errors.append("UNSPLASH_ACCESS_KEY is not set. Please check your .env file.")
+            
+        if not self.pexels_api_key:
+            errors.append("PEXELS_API_KEY is not set. Please check your .env file.")
             
         # YouTube API validation (optional - only validate if trying to use YouTube features)
         # Note: YouTube credentials are validated separately during authentication
@@ -106,6 +114,13 @@ class Config:
         if self.min_images <= 0 or self.min_images > self.max_images:
             errors.append("Min images must be positive and not greater than max images")
         
+        # Video configuration validation
+        if self.max_videos <= 0 or self.max_videos > 10:
+            errors.append("Max videos must be between 1 and 10")
+            
+        if self.min_videos <= 0 or self.min_videos > self.max_videos:
+            errors.append("Min videos must be positive and not greater than max videos")
+        
         # VOICEVOX configuration validation
         if self.speaker_id < 0:
             errors.append("Speaker ID must be non-negative")
@@ -133,6 +148,7 @@ class Config:
             'api_keys': {
                 'gemini_configured': bool(self.gemini_api_key),
                 'unsplash_configured': bool(self.unsplash_access_key),
+                'pexels_configured': bool(self.pexels_api_key),
                 'youtube_configured': bool(self.youtube_client_id and self.youtube_client_secret)
             },
             'directories': {
@@ -150,6 +166,10 @@ class Config:
             'image_settings': {
                 'max_images': self.max_images,
                 'min_images': self.min_images
+            },
+            'video_fetching_settings': {
+                'max_videos': self.max_videos,
+                'min_videos': self.min_videos
             },
             'audio_settings': {
                 'speaker_id': self.speaker_id,
@@ -172,6 +192,9 @@ class Config:
             elif section == 'image_settings':
                 self.max_images = settings.get('max_images', self.max_images)
                 self.min_images = settings.get('min_images', self.min_images)
+            elif section == 'video_fetching_settings':
+                self.max_videos = settings.get('max_videos', self.max_videos)
+                self.min_videos = settings.get('min_videos', self.min_videos)
             elif section == 'audio_settings':
                 self.speaker_id = settings.get('speaker_id', self.speaker_id)
                 self.audio_format = settings.get('format', self.audio_format)
