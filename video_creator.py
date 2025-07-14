@@ -134,9 +134,19 @@ class VideoCreator:
     def _resize_and_fit_video(self, video_clip: VideoFileClip) -> VideoFileClip:
         """Resize and fit video to target dimensions while maintaining aspect ratio"""
         try:
+            # Validate input
+            if not video_clip:
+                raise ValueError("Invalid video clip provided")
+            
+            if not hasattr(video_clip, 'size') or not video_clip.size:
+                raise ValueError("Video clip missing size information")
+            
             # Get original dimensions
             orig_w, orig_h = video_clip.size
             target_w, target_h = self.video_size
+            
+            if orig_w <= 0 or orig_h <= 0:
+                raise ValueError(f"Invalid video dimensions: {orig_w}x{orig_h}")
             
             # Calculate scale factor to fit within target dimensions
             scale_w = target_w / orig_w
@@ -147,7 +157,15 @@ class VideoCreator:
             new_w = int(orig_w * scale)
             new_h = int(orig_h * scale)
             
+            # Ensure minimum dimensions
+            if new_w <= 0 or new_h <= 0:
+                raise ValueError(f"Calculated dimensions too small: {new_w}x{new_h}")
+            
             resized_clip = video_clip.resize((new_w, new_h))
+            
+            # Validate resized clip
+            if not resized_clip:
+                raise RuntimeError("Failed to resize video clip")
             
             # If video doesn't fill the entire frame, add black background
             if new_w < target_w or new_h < target_h:
@@ -155,14 +173,32 @@ class VideoCreator:
                 background = ColorClip(size=self.video_size, color=(0, 0, 0))
                 background = background.set_duration(video_clip.duration)
                 
+                # Validate background
+                if not background:
+                    raise RuntimeError("Failed to create background clip")
+                
                 # Center the video on the background
                 x_offset = (target_w - new_w) // 2
                 y_offset = (target_h - new_h) // 2
                 
                 resized_clip = resized_clip.set_position((x_offset, y_offset))
-                final_clip = CompositeVideoClip([background, resized_clip])
                 
-                return final_clip
+                # Create composite clip with validation
+                try:
+                    final_clip = CompositeVideoClip([background, resized_clip])
+                    
+                    # Validate final clip
+                    if not final_clip:
+                        raise RuntimeError("Failed to create composite video clip")
+                    
+                    return final_clip
+                except Exception as e:
+                    # Clean up on error
+                    if background:
+                        background.close()
+                    if resized_clip:
+                        resized_clip.close()
+                    raise RuntimeError(f"Failed to create composite clip: {e}")
             
             return resized_clip
             
