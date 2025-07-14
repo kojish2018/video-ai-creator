@@ -44,6 +44,7 @@ class VideoWorkflow:
             self.video_creator = VideoCreator(self.config)
             self.subtitle_generator = SubtitleGenerator(self.config)
             self.youtube_uploader = YouTubeUploader(self.config)
+            self.thumbnail_generator = ThumbnailGenerator(self.config)
             
         except Exception as e:
             raise RuntimeError(f"コンポーネントの初期化に失敗しました: {e}")
@@ -120,7 +121,8 @@ class VideoWorkflow:
             images = self.image_fetcher.fetch_images(script_data['keywords'], self.config.max_images)
             result['steps']['image_fetching'] = {
                 'success': True,
-                'count': len(images)
+                'count': len(images),
+                'images': images  # 画像リストを結果に保存
             }
             self._update_progress("画像取得", 50, f"{len(images)}枚の画像をダウンロード完了")
             
@@ -272,6 +274,33 @@ class VideoWorkflow:
                     result['errors'].append("YouTube認証に失敗しました")
                     result['youtube_url'] = None
                 else:
+                    # サムネイル生成（オプション）
+                    thumbnail_path = None
+                    if thumbnail_text:
+                        self._update_progress("サムネイル生成", 96, "サムネイル画像を生成中...")
+                        try:
+                            # 最初の取得画像を背景として使用
+                            background_image_url = None
+                            images = basic_result['steps']['image_fetching'].get('images', [])
+                            if images and len(images) > 0:
+                                background_image_url = images[0]  # 最初の画像のURLを使用
+                            
+                            thumbnail_path = self.thumbnail_generator.generate_thumbnail(
+                                text=thumbnail_text,
+                                background_image_url=background_image_url
+                            )
+                            
+                            if self.thumbnail_generator.validate_thumbnail(thumbnail_path):
+                                print(f"サムネイル生成完了: {thumbnail_path}")
+                            else:
+                                print("サムネイル検証に失敗しました。サムネイルなしでアップロードします。")
+                                thumbnail_path = None
+                                
+                        except Exception as e:
+                            print(f"サムネイル生成中にエラーが発生しました: {e}")
+                            print("サムネイルなしでアップロードします。")
+                            thumbnail_path = None
+                    
                     self._update_progress("YouTube投稿", 97, "YouTubeに動画をアップロード中...")
                     
                     # プログレスコールバック
@@ -284,7 +313,8 @@ class VideoWorkflow:
                         script_data['script'],
                         youtube_privacy,
                         upload_progress,
-                        youtube_title
+                        youtube_title,
+                        thumbnail_path
                     )
                     
                     result['steps']['youtube_upload'] = {
@@ -331,6 +361,8 @@ class VideoWorkflow:
             self.video_creator.cleanup_temp_files()
             if hasattr(self, 'subtitle_generator'):
                 self.subtitle_generator.cleanup_temp_files()
+            if hasattr(self, 'thumbnail_generator'):
+                self.thumbnail_generator.cleanup_temp_thumbnails()
         except Exception as e:
             print(f"警告: 一時ファイルの削除中にエラーが発生しました: {e}")
 
