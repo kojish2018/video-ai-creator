@@ -150,6 +150,17 @@ class VideoCreator:
     def _loop_video(self, video_clip: VideoFileClip, target_duration: float) -> VideoFileClip:
         """Loop video to match target duration"""
         try:
+            # Validate input
+            if not video_clip or video_clip.duration <= 0:
+                raise ValueError("Invalid video clip provided")
+            
+            if target_duration <= 0:
+                raise ValueError("Target duration must be positive")
+            
+            # If video is already longer than target, just cut it
+            if video_clip.duration >= target_duration:
+                return video_clip.subclip(0, target_duration)
+            
             clips = []
             current_duration = 0
             
@@ -157,8 +168,8 @@ class VideoCreator:
                 remaining_duration = target_duration - current_duration
                 
                 if remaining_duration >= video_clip.duration:
-                    # Add full video clip
-                    clips.append(video_clip)
+                    # Add full video clip (create a copy to avoid reference issues)
+                    clips.append(video_clip.copy())
                     current_duration += video_clip.duration
                 else:
                     # Add partial clip to reach exact duration
@@ -166,8 +177,17 @@ class VideoCreator:
                     clips.append(partial_clip)
                     current_duration += remaining_duration
             
+            # Ensure we have clips to concatenate
+            if not clips:
+                raise RuntimeError("No clips generated for looping")
+            
+            # Validate all clips before concatenation
+            for i, clip in enumerate(clips):
+                if not clip or not hasattr(clip, 'duration') or clip.duration <= 0:
+                    raise RuntimeError(f"Invalid clip at index {i}")
+            
             # Concatenate all clips
-            looped_video = concatenate_videoclips(clips)
+            looped_video = concatenate_videoclips(clips, method='compose')
             
             return looped_video
             
