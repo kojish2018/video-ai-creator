@@ -266,11 +266,11 @@ class VideoCreator:
                 remaining_duration = target_duration - current_duration
                 
                 if remaining_duration >= video_clip.duration:
-                    # Add full video clip (create a copy to avoid reference issues)
-                    clip_copy = video_clip.copy()
+                    # Add full video clip (use subclip to preserve reader)
+                    clip_copy = video_clip.subclip(0, video_clip.duration)
                     clips.append(clip_copy)
                     current_duration += video_clip.duration
-                    print(f"🔍 DEBUG: Added full clip copy {len(clips)}, duration={clip_copy.duration}")
+                    print(f"🔍 DEBUG: Added full clip subclip {len(clips)}, duration={clip_copy.duration}")
                 else:
                     # Add partial clip to reach exact duration
                     partial_clip = video_clip.subclip(0, remaining_duration)
