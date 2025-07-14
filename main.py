@@ -48,6 +48,7 @@ class VideoWorkflow:
             self.subtitle_generator = SubtitleGenerator(self.config)
             self.youtube_uploader = YouTubeUploader(self.config)
             self.thumbnail_generator = ThumbnailGenerator(self.config)
+            self.keyword_extractor = KeywordExtractor()
             
         except Exception as e:
             raise RuntimeError(f"コンポーネントの初期化に失敗しました: {e}")
