@@ -235,13 +235,12 @@ class VideoCreator:
     
     def _create_concatenated_video(self, video_paths: List[str]) -> VideoFileClip:
         """複数の動画を連結して1つの動画を作成"""
+        processed_clips = []
         try:
             print(f"🔍 DEBUG: _create_concatenated_video called with {len(video_paths)} videos")
             
             if not video_paths:
                 raise ValueError("No video paths provided")
-            
-            processed_clips = []
             
             # 各動画をロードしてリサイズ
             for i, video_path in enumerate(video_paths):
