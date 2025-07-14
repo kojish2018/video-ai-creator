@@ -95,13 +95,28 @@ class KeywordExtractor:
     
     def _tokenize(self, text: str) -> List[str]:
         """テキストを単語に分割"""
-        try:
-            # jiebaで日本語を分割
-            words = jieba.cut(text, cut_all=False)
-            return [word.strip() for word in words if len(word.strip()) > 1]
-        except Exception:
-            # フォールバック: 簡単な分割
-            return re.findall(r'[ぁ-んァ-ン一-龥a-zA-Z0-9]+', text)
+        if JIEBA_AVAILABLE:
+            try:
+                # jiebaで日本語を分割
+                words = jieba.cut(text, cut_all=False)
+                return [word.strip() for word in words if len(word.strip()) > 1]
+            except Exception:
+                pass
+        
+        # フォールバック: 正規表現による分割
+        words = re.findall(r'[ぁ-んァ-ン一-龥a-zA-Z0-9]+', text)
+        
+        # 追加の単語境界検出（簡易版）
+        enhanced_words = []
+        for word in words:
+            if len(word) > 4:
+                # 長い単語を分割する試み
+                subwords = re.findall(r'[ァ-ヶー]{2,}|[a-zA-Z]{2,}|[一-龥]{2,}', word)
+                enhanced_words.extend(subwords if subwords else [word])
+            else:
+                enhanced_words.append(word)
+        
+        return [word for word in enhanced_words if len(word) > 1]
     
     def _extract_candidates(self, words: List[str]) -> List[str]:
         """キーワード候補を抽出"""
