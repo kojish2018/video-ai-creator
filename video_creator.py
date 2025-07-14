@@ -88,16 +88,15 @@ class VideoCreator:
             if duration <= 0:
                 raise ValueError("Duration must be positive")
             
-            # Select the first valid video
-            video_path = None
+            # Collect all valid videos
+            valid_videos = []
             for i, video_info in enumerate(videos):
                 print(f"🔍 DEBUG: Checking video {i}: {video_info}")
                 if 'local_path' in video_info and os.path.exists(video_info['local_path']):
-                    video_path = video_info['local_path']
-                    print(f"🔍 DEBUG: Selected video path: {video_path}")
-                    break
+                    valid_videos.append(video_info['local_path'])
+                    print(f"🔍 DEBUG: Added valid video path: {video_info['local_path']}")
             
-            if not video_path:
+            if not valid_videos:
                 raise RuntimeError("No valid video files found")
             
             # Load video clip
