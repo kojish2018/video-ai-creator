@@ -38,7 +38,7 @@ class Config:
         self.min_images = 3
         
         # Video Configuration (for Pexels API)
-        self.max_videos = 3
+        self.max_videos = 5
         self.min_videos = 1
         
         # Audio Configuration
