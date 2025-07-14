@@ -99,38 +99,27 @@ class VideoCreator:
             if not valid_videos:
                 raise RuntimeError("No valid video files found")
             
-            # Load video clip
-            print(f"🔍 DEBUG: Loading video clip from: {video_path}")
-            video_clip = VideoFileClip(video_path)
-            print(f"🔍 DEBUG: Loaded video clip: duration={video_clip.duration}, size={video_clip.size}")
+            # Create concatenated video from multiple videos
+            print(f"🔍 DEBUG: Creating concatenated video from {len(valid_videos)} videos")
+            concatenated_clip = self._create_concatenated_video(valid_videos)
+            print(f"🔍 DEBUG: Concatenated clip: duration={concatenated_clip.duration}, size={concatenated_clip.size}")
+            print(f"🔍 DEBUG: Concatenated clip type: {type(concatenated_clip)}")
             
-            # Validate loaded video clip
-            if not video_clip or video_clip.duration <= 0:
-                video_clip.close()
-                raise RuntimeError(f"Invalid video file: {video_path}")
+            # Validate concatenated clip
+            if not concatenated_clip or concatenated_clip.duration <= 0:
+                if concatenated_clip:
+                    concatenated_clip.close()
+                raise RuntimeError("Failed to create concatenated video clip")
             
-            # Resize video to match target dimensions
-            print(f"🔍 DEBUG: Resizing video clip...")
-            resized_clip = self._resize_and_fit_video(video_clip)
-            print(f"🔍 DEBUG: Resized clip: duration={resized_clip.duration}, size={resized_clip.size}")
-            print(f"🔍 DEBUG: Resized clip type: {type(resized_clip)}")
-            
-            # Validate resized clip
-            if not resized_clip or resized_clip.duration <= 0:
-                video_clip.close()
-                if resized_clip:
-                    resized_clip.close()
-                raise RuntimeError("Failed to resize video clip")
-            
-            # Adjust video duration to match audio
-            if resized_clip.duration >= duration:
-                # Video is longer than needed, cut it
-                print(f"🔍 DEBUG: Cutting video from {resized_clip.duration}s to {duration}s")
-                final_video = resized_clip.subclip(0, duration)
+            # Adjust video duration to match audio by looping the concatenated video
+            if concatenated_clip.duration >= duration:
+                # Concatenated video is longer than needed, cut it
+                print(f"🔍 DEBUG: Cutting concatenated video from {concatenated_clip.duration}s to {duration}s")
+                final_video = concatenated_clip.subclip(0, duration)
             else:
-                # Video is shorter than needed, loop it
-                print(f"🔍 DEBUG: Looping video from {resized_clip.duration}s to {duration}s")
-                final_video = self._loop_video(resized_clip, duration)
+                # Concatenated video is shorter than needed, loop it
+                print(f"🔍 DEBUG: Looping concatenated video from {concatenated_clip.duration}s to {duration}s")
+                final_video = self._loop_video(concatenated_clip, duration)
             
             print(f"🔍 DEBUG: Final video: duration={final_video.duration}, type={type(final_video)}")
             
