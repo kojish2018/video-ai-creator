@@ -99,10 +99,12 @@ class VideoWorkflow:
             # ステップ2: スクリプト生成
             if custom_script:
                 self._update_progress("スクリプト生成", 10, "カスタムスクリプトを使用中...")
+                # カスタムスクリプトからキーワードを抽出
+                extracted_keywords = self.keyword_extractor.extract_keywords(custom_script)
                 script_data = {
                     'title': theme,
                     'script': custom_script,
-                    'keywords': [theme]  # テーマをキーワードとして使用
+                    'keywords': extracted_keywords  # スクリプトから抽出したキーワードを使用
                 }
                 result['steps']['script_generation'] = {
                     'success': True,
