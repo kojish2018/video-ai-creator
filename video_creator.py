@@ -8,7 +8,7 @@ from moviepy.editor import (
 from config import Config
 
 class VideoCreator:
-    """Create videos using MoviePy with image slideshow and audio"""
+    """Create videos using MoviePy with video background and audio"""
     
     def __init__(self, config: Config):
         self.config = config
@@ -16,21 +16,22 @@ class VideoCreator:
         self.video_size = (config.video_width, config.video_height)
         self.fps = config.video_fps
     
-    def create_video(self, images: List[Dict[str, str]], audio_path: str, output_filename: str = None, is_custom_script: bool = False) -> str:
+    def create_video(self, images: List[Dict[str, str]], audio_path: str, output_filename: str = None, is_custom_script: bool = False, videos: Optional[List[Dict[str, str]]] = None) -> str:
         """
-        Create a video with image slideshow and audio
+        Create a video with video background (or image slideshow fallback) and audio
         
         Args:
-            images: List of image info dictionaries with 'local_path' key
+            images: List of image info dictionaries with 'local_path' key (fallback)
             audio_path: Path to audio file
             output_filename: Output video filename (optional)
             is_custom_script: Whether this is a custom script (bypasses 30-second rule)
+            videos: List of video info dictionaries with 'local_path' key (primary)
             
         Returns:
             Path to created video file
         """
-        if not images:
-            raise ValueError("No images provided for video creation")
+        if not videos and not images:
+            raise ValueError("No videos or images provided for video creation")
         
         if not os.path.exists(audio_path):
             raise ValueError(f"Audio file not found: {audio_path}")
@@ -41,8 +42,12 @@ class VideoCreator:
             # For custom scripts, use full audio duration; for regular scripts, limit to target duration
             actual_duration = audio_clip.duration if is_custom_script else min(audio_clip.duration, self.target_duration)
             
-            # Create image slideshow
-            video_clip = self._create_image_slideshow(images, actual_duration)
+            # Create video background (videos prioritized over images)
+            if videos and len(videos) > 0:
+                video_clip = self._create_video_background(videos, actual_duration)
+            else:
+                # Fallback to image slideshow
+                video_clip = self._create_image_slideshow(images, actual_duration)
             
             # Combine video and audio
             final_clip = video_clip.set_audio(audio_clip.subclip(0, actual_duration))
@@ -66,6 +71,108 @@ class VideoCreator:
             
         except Exception as e:
             self._handle_video_error(e)
+    
+    def _create_video_background(self, videos: List[Dict[str, str]], duration: float) -> VideoFileClip:
+        """Create video background with looping/cutting to match audio duration"""
+        try:
+            # Select the first valid video
+            video_path = None
+            for video_info in videos:
+                if os.path.exists(video_info['local_path']):
+                    video_path = video_info['local_path']
+                    break
+            
+            if not video_path:
+                raise RuntimeError("No valid video files found")
+            
+            # Load video clip
+            video_clip = VideoFileClip(video_path)
+            
+            # Resize video to match target dimensions
+            video_clip = self._resize_and_fit_video(video_clip)
+            
+            # Adjust video duration to match audio
+            if video_clip.duration >= duration:
+                # Video is longer than needed, cut it
+                final_video = video_clip.subclip(0, duration)
+            else:
+                # Video is shorter than needed, loop it
+                final_video = self._loop_video(video_clip, duration)
+            
+            # Remove original audio from video (we'll use the generated audio)
+            final_video = final_video.without_audio()
+            
+            video_clip.close()
+            
+            return final_video
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to create video background: {e}")
+    
+    def _resize_and_fit_video(self, video_clip: VideoFileClip) -> VideoFileClip:
+        """Resize and fit video to target dimensions while maintaining aspect ratio"""
+        try:
+            # Get original dimensions
+            orig_w, orig_h = video_clip.size
+            target_w, target_h = self.video_size
+            
+            # Calculate scale factor to fit within target dimensions
+            scale_w = target_w / orig_w
+            scale_h = target_h / orig_h
+            scale = min(scale_w, scale_h)
+            
+            # Resize video
+            new_w = int(orig_w * scale)
+            new_h = int(orig_h * scale)
+            
+            resized_clip = video_clip.resize((new_w, new_h))
+            
+            # If video doesn't fill the entire frame, add black background
+            if new_w < target_w or new_h < target_h:
+                # Create black background
+                background = ColorClip(size=self.video_size, color=(0, 0, 0))
+                background = background.set_duration(video_clip.duration)
+                
+                # Center the video on the background
+                x_offset = (target_w - new_w) // 2
+                y_offset = (target_h - new_h) // 2
+                
+                resized_clip = resized_clip.set_position((x_offset, y_offset))
+                final_clip = CompositeVideoClip([background, resized_clip])
+                
+                return final_clip
+            
+            return resized_clip
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to resize video: {e}")
+    
+    def _loop_video(self, video_clip: VideoFileClip, target_duration: float) -> VideoFileClip:
+        """Loop video to match target duration"""
+        try:
+            clips = []
+            current_duration = 0
+            
+            while current_duration < target_duration:
+                remaining_duration = target_duration - current_duration
+                
+                if remaining_duration >= video_clip.duration:
+                    # Add full video clip
+                    clips.append(video_clip)
+                    current_duration += video_clip.duration
+                else:
+                    # Add partial clip to reach exact duration
+                    partial_clip = video_clip.subclip(0, remaining_duration)
+                    clips.append(partial_clip)
+                    current_duration += remaining_duration
+            
+            # Concatenate all clips
+            looped_video = concatenate_videoclips(clips)
+            
+            return looped_video
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to loop video: {e}")
     
     def _create_image_slideshow(self, images: List[Dict[str, str]], duration: float) -> VideoFileClip:
         """Create image slideshow with transitions"""
@@ -250,6 +357,19 @@ class VideoCreator:
                         os.remove(filename)
                     except:
                         pass
+            
+            # Clean up temporary video files from temp directory
+            try:
+                if os.path.exists(self.config.temp_dir):
+                    temp_video_files = [f for f in os.listdir(self.config.temp_dir) 
+                                      if f.startswith('video_') and f.endswith(('.mp4', '.mov', '.avi'))]
+                    
+                    for filename in temp_video_files:
+                        filepath = os.path.join(self.config.temp_dir, filename)
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+            except Exception as e:
+                print(f"Warning: Failed to cleanup temp video files: {e}")
                         
         except Exception as e:
             print(f"Warning: Failed to cleanup temp files: {e}")

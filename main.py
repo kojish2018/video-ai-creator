@@ -20,6 +20,7 @@ from datetime import datetime
 from config import Config
 from script_generator import ScriptGenerator
 from image_fetcher import ImageFetcher
+from video_fetcher import VideoFetcher
 from voice_generator import VoiceGenerator
 from video_creator import VideoCreator
 from subtitle_generator import SubtitleGenerator
