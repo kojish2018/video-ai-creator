@@ -135,10 +135,9 @@ class VideoCreator:
             final_video = final_video.without_audio()
             print(f"🔍 DEBUG: Audio removed, final video ready")
             
-            # Cleanup
-            video_clip.close()
-            if resized_clip != final_video:
-                resized_clip.close()
+            # Don't close original clips here - they may be referenced by the final video
+            # Cleanup will be handled later
+            print(f"🔍 DEBUG: Keeping original clips open for final video")
             
             return final_video
             
