@@ -41,6 +41,7 @@ class VideoWorkflow:
         try:
             self.script_generator = ScriptGenerator(self.config)
             self.image_fetcher = ImageFetcher(self.config)
+            self.video_fetcher = VideoFetcher(self.config)
             self.voice_generator = VoiceGenerator(self.config)
             self.video_creator = VideoCreator(self.config)
             self.subtitle_generator = SubtitleGenerator(self.config)
@@ -117,8 +118,18 @@ class VideoWorkflow:
                 }
                 self._update_progress("スクリプト生成", 25, f"スクリプト生成完了: {script_data['title']}")
             
-            # ステップ3: 画像取得
-            self._update_progress("画像取得", 30, "関連画像を検索・ダウンロード中...")
+            # ステップ3: 動画取得
+            self._update_progress("動画取得", 30, "関連動画を検索・ダウンロード中...")
+            videos = self.video_fetcher.fetch_videos(script_data['keywords'], self.config.max_videos)
+            result['steps']['video_fetching'] = {
+                'success': True,
+                'count': len(videos),
+                'videos': videos  # 動画リストを結果に保存
+            }
+            self._update_progress("動画取得", 40, f"{len(videos)}本の動画をダウンロード完了")
+            
+            # ステップ4: 画像取得（フォールバック用）
+            self._update_progress("画像取得", 45, "関連画像を検索・ダウンロード中...")
             images = self.image_fetcher.fetch_images(script_data['keywords'], self.config.max_images)
             result['steps']['image_fetching'] = {
                 'success': True,
@@ -127,7 +138,7 @@ class VideoWorkflow:
             }
             self._update_progress("画像取得", 50, f"{len(images)}枚の画像をダウンロード完了")
             
-            # ステップ4: 音声生成
+            # ステップ5: 音声生成
             self._update_progress("音声生成", 55, "スクリプトから音声を生成中...")
             is_custom = result['steps']['script_generation']['custom']
             audio_path = self.voice_generator.generate_voice(script_data['script'], is_custom_script=is_custom)
@@ -137,22 +148,22 @@ class VideoWorkflow:
             }
             self._update_progress("音声生成", 75, "音声生成完了")
             
-            # ステップ5: 動画作成
-            self._update_progress("動画作成", 80, "画像と音声を結合して動画を作成中...")
+            # ステップ6: 動画作成
+            self._update_progress("動画作成", 80, "動画背景と音声を結合して動画を作成中...")
             
             if output_filename is None:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 clean_theme = "".join(c for c in theme if c.isalnum() or c in "- _")[:20]
                 output_filename = f"{clean_theme}_{timestamp}.mp4"
             
-            video_path = self.video_creator.create_video(images, audio_path, output_filename, is_custom_script=is_custom)
+            video_path = self.video_creator.create_video(images, audio_path, output_filename, is_custom_script=is_custom, videos=videos)
             result['steps']['video_creation'] = {
                 'success': True,
                 'video_path': video_path
             }
             self._update_progress("動画作成", 95, "動画作成完了")
             
-            # ステップ6: 後処理・検証
+            # ステップ7: 後処理・検証
             self._update_progress("完了処理", 98, "生成結果を検証中...")
             video_info = self.video_creator.get_video_info(video_path)
             
@@ -358,6 +369,7 @@ class VideoWorkflow:
         """一時ファイルをクリーンアップ"""
         try:
             self.image_fetcher.cleanup_temp_images()
+            self.video_fetcher.cleanup_temp_videos()
             self.voice_generator.cleanup_temp_audio()
             self.video_creator.cleanup_temp_files()
             if hasattr(self, 'subtitle_generator'):
