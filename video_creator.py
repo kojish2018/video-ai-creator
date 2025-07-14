@@ -233,6 +233,73 @@ class VideoCreator:
             print(f"🔍 DEBUG: Exception in _resize_and_fit_video: {e}")
             raise RuntimeError(f"Failed to resize video: {e}")
     
+    def _create_concatenated_video(self, video_paths: List[str]) -> VideoFileClip:
+        """複数の動画を連結して1つの動画を作成"""
+        try:
+            print(f"🔍 DEBUG: _create_concatenated_video called with {len(video_paths)} videos")
+            
+            if not video_paths:
+                raise ValueError("No video paths provided")
+            
+            processed_clips = []
+            
+            # 各動画をロードしてリサイズ
+            for i, video_path in enumerate(video_paths):
+                print(f"🔍 DEBUG: Loading video {i+1}/{len(video_paths)}: {video_path}")
+                
+                # 動画をロード
+                video_clip = VideoFileClip(video_path)
+                print(f"🔍 DEBUG: Loaded video {i+1}: duration={video_clip.duration}, size={video_clip.size}")
+                
+                # 動画を検証
+                if not video_clip or video_clip.duration <= 0:
+                    print(f"🔍 DEBUG: Invalid video {i+1}, skipping")
+                    video_clip.close()
+                    continue
+                
+                # 動画をリサイズ
+                resized_clip = self._resize_and_fit_video(video_clip)
+                print(f"🔍 DEBUG: Resized video {i+1}: duration={resized_clip.duration}, type={type(resized_clip)}")
+                
+                # リサイズした動画を検証
+                if not resized_clip or resized_clip.duration <= 0:
+                    print(f"🔍 DEBUG: Failed to resize video {i+1}, skipping")
+                    video_clip.close()
+                    if resized_clip:
+                        resized_clip.close()
+                    continue
+                
+                # 音声を除去（後で生成した音声を使用）
+                resized_clip = resized_clip.without_audio()
+                processed_clips.append(resized_clip)
+                print(f"🔍 DEBUG: Added processed video {i+1} to concatenation list")
+            
+            # 処理された動画が1つもない場合
+            if not processed_clips:
+                raise RuntimeError("No valid videos could be processed for concatenation")
+            
+            # 動画が1つだけの場合
+            if len(processed_clips) == 1:
+                print(f"🔍 DEBUG: Only one video available, returning it directly")
+                return processed_clips[0]
+            
+            # 複数の動画を連結
+            print(f"🔍 DEBUG: Concatenating {len(processed_clips)} videos")
+            concatenated_clip = concatenate_videoclips(processed_clips, method='compose')
+            print(f"🔍 DEBUG: Concatenation complete: duration={concatenated_clip.duration}")
+            
+            return concatenated_clip
+            
+        except Exception as e:
+            print(f"🔍 DEBUG: Exception in _create_concatenated_video: {e}")
+            # エラー時はクリップをクリーンアップ
+            for clip in processed_clips:
+                try:
+                    clip.close()
+                except:
+                    pass
+            raise RuntimeError(f"Failed to create concatenated video: {e}")
+    
     def _loop_video(self, video_clip: VideoFileClip, target_duration: float) -> VideoFileClip:
         """Loop video to match target duration"""
         try:
