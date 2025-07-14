@@ -75,10 +75,17 @@ class VideoCreator:
     def _create_video_background(self, videos: List[Dict[str, str]], duration: float) -> VideoFileClip:
         """Create video background with looping/cutting to match audio duration"""
         try:
+            # Validate inputs
+            if not videos:
+                raise ValueError("No videos provided")
+            
+            if duration <= 0:
+                raise ValueError("Duration must be positive")
+            
             # Select the first valid video
             video_path = None
             for video_info in videos:
-                if os.path.exists(video_info['local_path']):
+                if 'local_path' in video_info and os.path.exists(video_info['local_path']):
                     video_path = video_info['local_path']
                     break
             
@@ -88,21 +95,36 @@ class VideoCreator:
             # Load video clip
             video_clip = VideoFileClip(video_path)
             
+            # Validate loaded video clip
+            if not video_clip or video_clip.duration <= 0:
+                video_clip.close()
+                raise RuntimeError(f"Invalid video file: {video_path}")
+            
             # Resize video to match target dimensions
-            video_clip = self._resize_and_fit_video(video_clip)
+            resized_clip = self._resize_and_fit_video(video_clip)
+            
+            # Validate resized clip
+            if not resized_clip or resized_clip.duration <= 0:
+                video_clip.close()
+                if resized_clip:
+                    resized_clip.close()
+                raise RuntimeError("Failed to resize video clip")
             
             # Adjust video duration to match audio
-            if video_clip.duration >= duration:
+            if resized_clip.duration >= duration:
                 # Video is longer than needed, cut it
-                final_video = video_clip.subclip(0, duration)
+                final_video = resized_clip.subclip(0, duration)
             else:
                 # Video is shorter than needed, loop it
-                final_video = self._loop_video(video_clip, duration)
+                final_video = self._loop_video(resized_clip, duration)
             
             # Remove original audio from video (we'll use the generated audio)
             final_video = final_video.without_audio()
             
+            # Cleanup
             video_clip.close()
+            if resized_clip != final_video:
+                resized_clip.close()
             
             return final_video
             
